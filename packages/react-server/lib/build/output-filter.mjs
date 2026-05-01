@@ -81,6 +81,20 @@ function writeLine(text) {
   spinnerStream.write(`\r\x1b[K${text}`);
 }
 
+/**
+ * Truncate a string to fit within `maxLen` columns, inserting an ellipsis
+ * in the middle so both the prefix and suffix remain visible. Used to keep
+ * spinner lines on a single terminal row — without this, lines longer than
+ * the terminal width wrap, and the next `\r\x1b[K` only clears the wrapped
+ * row, leaving previous content on screen.
+ */
+function truncateMiddle(str, maxLen) {
+  if (str.length <= maxLen) return str;
+  if (maxLen < 4) return str.slice(0, Math.max(0, maxLen));
+  const halfLen = Math.floor((maxLen - 3) / 2);
+  return str.slice(0, maxLen - 3 - halfLen) + "..." + str.slice(-halfLen);
+}
+
 function getGroupColor(group) {
   const groupDef = FILE_GROUPS.find((g) => g.name === group);
   return groupDef ? groupDef.color : colors.dim;
@@ -96,12 +110,7 @@ function updateSpinner() {
     const sizeStr = sharedCurrentSize.padStart(10);
     const maxFileLen = termWidth - 4 - sizeStr.length - 2; // spinner + spaces
 
-    let displayName = sharedCurrentFile;
-    if (displayName.length > maxFileLen && maxFileLen > 10) {
-      const halfLen = Math.floor((maxFileLen - 3) / 2);
-      displayName =
-        displayName.slice(0, halfLen) + "..." + displayName.slice(-halfLen);
-    }
+    const displayName = truncateMiddle(sharedCurrentFile, maxFileLen);
 
     writeLine(
       `${colors.cyan(frame)} ${groupColor(displayName.padEnd(maxFileLen))}  ${colors.bold(colors.dim(sizeStr))}`
@@ -480,7 +489,13 @@ export function createSpinner(message, options = {}) {
 
   const render = () => {
     const spinner = spinnerFrames[frame];
-    stream.write(`\r\x1b[K${colorFn(spinner)} ${colors.dim(currentMessage)}`);
+    // 2 cols reserved for the spinner glyph + space.
+    const termWidth = stream.columns || process.stdout.columns || 80;
+    const displayMessage = truncateMiddle(
+      currentMessage,
+      Math.max(0, termWidth - 2)
+    );
+    stream.write(`\r\x1b[K${colorFn(spinner)} ${colors.dim(displayMessage)}`);
   };
 
   // Hide cursor
