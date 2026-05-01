@@ -10,7 +10,7 @@ import Link from "../../../../components/Link.jsx";
 
 ページを静的としてマークすると、ファイルシステムベースのルーターがそのページを`@lazarv/react-server`のエクスポートに追加します。
 
-ページを静的としてマークするには、ページの一致するパスに`.static.{js,mjs,ts,mts,json}`拡張子のファイルを作成し、そのルートで使用可能なパラメータの配列、またはパラメータの配列を返す関数をデフォルトエクスポートします。関数は非同期関数にすることもできます。
+ページを静的としてマークするには、ページの一致するパスに`.static.{js,mjs,ts,mts,json}`拡張子のファイルを作成し、そのルートで使用可能なパラメータの配列、パラメータの配列を返す関数、またはパラメータを逐次yieldする非同期ジェネレーター関数をデフォルトエクスポートします。関数は非同期関数にすることもできます。
 
 パラメータのないページの場合は、デフォルトで`true`をエクスポートします。
 
@@ -43,6 +43,29 @@ export default async () => [{ id: 1 }, { id: 2 }, { id: 3 }];
 ```
 
 関数はビルド時に実行され、その結果が静的ページの生成に使用されます。
+
+<Link name="streaming-static-paths">
+## 静的パスのストリーミング
+</Link>
+
+非常に多くのパスを持つルート（CMSから取得したページネーション付きコンテンツ、大規模データベースから読み込むslug、レンダリング開始前にリスト全体をメモリに展開するのが無駄になるあらゆるケース）では、デフォルトエクスポートを`async function*`（非同期ジェネレーター）として宣言し、パラメータ記述子を逐次yieldできます。総数に関わらずピークメモリは1記述子のまま、最初のyieldと同時にレンダリングを開始できます。
+
+```js filename="users/[id].static.mjs"
+export default async function* () {
+  let cursor = null;
+  do {
+    const { items, next } = await fetchUsers(cursor);
+    for (const user of items) {
+      yield { id: user.id };
+    }
+    cursor = next;
+  } while (cursor);
+}
+```
+
+`{ ...params }`記述子（上記のようにルートのパラメータテンプレートにマッピングされます）または`{ path: "/explicit/path" }`記述子を完全な制御のためにyieldできます。完全に同期的なソースには同期`function*`ジェネレーターも同様に動作します。
+
+> **注意:** 検出は関数の種類で行われます。デフォルトエクスポートとして`async function*`（または`function*`）を**直接**記述してください。通常の関数を返すラッパーは配列契約にフォールバックします。
 
 <Link name="static-json-data">
 ## 静的JSONデータ

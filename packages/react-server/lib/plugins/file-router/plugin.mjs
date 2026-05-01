@@ -27,6 +27,41 @@ import colors from "picocolors";
 const cwd = sys.cwd();
 const __require = createRequire(import.meta.url);
 
+/**
+ * Flatten a `*.static.{js,mjs,jsx}` default-export source into a stream of
+ * raw items. Mirrors `toPathStream` from the build pipeline, but treats any
+ * object as a leaf — the caller (the file-router static loader) decides
+ * whether each leaf is a `{ path }` descriptor or a `{ ...params }` object
+ * destined for `applyParamsToPath`. Using the build-side `toPathStream`
+ * directly here is wrong: it requires `path`/`filename` on every leaf and
+ * would reject param descriptors before mapping.
+ */
+async function* flattenStaticSource(source) {
+  if (source == null || source === false) return;
+  if (typeof source === "function") {
+    yield* flattenStaticSource(await source());
+    return;
+  }
+  if (typeof source === "string") {
+    yield source;
+    return;
+  }
+  // Async iterables take precedence — some objects implement both.
+  if (typeof source[Symbol.asyncIterator] === "function") {
+    for await (const item of source) yield* flattenStaticSource(item);
+    return;
+  }
+  // Iterate arrays + sync generators/Sets, but NOT plain objects (which
+  // don't have Symbol.iterator anyway) — the param-descriptor case
+  // `{ slug: "core" }` must reach the caller as a leaf, not be iterated.
+  if (Array.isArray(source) || typeof source[Symbol.iterator] === "function") {
+    for (const item of source) yield* flattenStaticSource(item);
+    return;
+  }
+  // Plain object — leaf, caller interprets it.
+  yield source;
+}
+
 function normalizeFileRouterConfig(config) {
   if (!config || typeof config !== "object" || typeof config === "function")
     return config;
@@ -2057,12 +2092,19 @@ ${outletExportLines.join("\n")}
                   join(cwd, outDir, "static", `${hash}.mjs`)
                 );
                 config.build.rollupOptions.input[`static/${hash}`] = staticSrc;
-                paths.push(async () => {
-                  let staticPaths = (await import(exportEntry)).default;
-                  if (typeof staticPaths === "function") {
-                    staticPaths = await staticPaths();
-                  }
-                  if (typeof staticPaths === "boolean" && staticPaths) {
+                // Streaming loader for *.static.{js,mjs,jsx} files. Mirrors the
+                // `config.export` contract: the default export may be an array,
+                // a function, an (async) iterable, or an (async) generator
+                // function. Anything iterable streams through `toPathStream`
+                // without materializing — `paths.push` of an `async function*`
+                // is itself a deferred source the exporter consumes lazily.
+                paths.push(async function* () {
+                  const mod = (await import(exportEntry)).default;
+
+                  // Boolean shortcut: `true` → emit the route's literal path
+                  // (only valid when there are no dynamic segments). Handled
+                  // before flattening so we don't iterate a Boolean.
+                  if (mod === true) {
                     if (/\[[^\]]+\]/.test(path)) {
                       throw new Error(
                         `missing values on static site generation of ${colors.bold(
@@ -2070,21 +2112,23 @@ ${outletExportLines.join("\n")}
                         )}, add missing values for all dynamic segments`
                       );
                     }
-                    return { path };
+                    yield { path };
+                    return;
                   }
-                  const validPaths = await Promise.all(
-                    staticPaths.map(async (def) => {
-                      let obj = def;
-                      if (typeof def === "function") {
-                        obj = await def();
-                      }
-                      if (typeof obj.path === "string") {
-                        return { path: obj.path };
-                      }
-                      return { path: applyParamsToPath(path, obj) };
-                    })
-                  );
-                  return validPaths;
+
+                  // Stream descriptors lazily; map params → path here so the
+                  // exporter sees a uniform `{ path }` shape. Sequential by
+                  // design — exporter-level concurrency (`p-map-stream`)
+                  // parallelizes across routes.
+                  for await (const item of flattenStaticSource(mod)) {
+                    if (typeof item === "string") {
+                      yield { path: item };
+                    } else if (typeof item.path === "string") {
+                      yield { path: item.path };
+                    } else {
+                      yield { path: applyParamsToPath(path, item) };
+                    }
+                  }
                 });
               }
             } catch (e) {

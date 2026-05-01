@@ -1,11 +1,14 @@
 import { getPages } from "../../pages.mjs";
 
-const pages = getPages("/", "ja").reduce((paths, { category, pages }) => {
-  paths.push({
-    path: `/ja/${category.toLowerCase()}`,
-  });
-  pages.forEach(({ langHref: path }) => paths.push({ path }));
-  return paths;
-}, []);
+// See the en/ counterpart — async generator form of the same enumeration.
+export default async function* () {
+  yield { path: "/ja" };
+  yield { path: "/ja/404" };
 
-export default [...pages, { path: "/ja" }, { path: "/ja/404" }];
+  for (const { category, pages } of getPages("/", "ja")) {
+    yield { path: `/ja/${category.toLowerCase()}` };
+    for (const { langHref: path } of pages) {
+      yield { path };
+    }
+  }
+}

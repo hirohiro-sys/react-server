@@ -12,7 +12,11 @@ import { emitAllArtifacts, formatLogEntry } from "./static-emit.mjs";
 import { runMultiProcess } from "./static-coordinator.mjs";
 import { setupStaticRender } from "./static-runtime.mjs";
 import { pMapStream } from "./p-map-stream.mjs";
-import { buildPathStream, validatedPathStream } from "./path-source.mjs";
+import {
+  buildPathStream,
+  dedupedPathStream,
+  validatedPathStream,
+} from "./path-source.mjs";
 
 /**
  * Static-site generator entry point.
@@ -93,7 +97,48 @@ export default async function staticSiteGenerator(root, options) {
   // Build the streaming path source. Lazy: the source generator is
   // pulled exactly when a worker / mapper is free. With an async
   // generator path source, the full path list is never materialized.
-  const pathStream = validatedPathStream(buildPathStream(options, configRoot));
+  //
+  // Pipeline order matters:
+  //   1. validatedPathStream — normalize strings → descriptors, fail-fast
+  //      on missing path/filename. Dedup must run on normalized shapes.
+  //   2. dedupedPathStream — drop entries we've already emitted, keyed
+  //      on a 128-bit hash of the *entire* descriptor (stably serialized).
+  //      Exact-match means we never skip work that would produce a
+  //      different artifact, only literal duplicates. Off-by-default would
+  //      force every user to opt in for what is almost always desired
+  //      behavior; the soft cap (1M) protects truly unbounded sources
+  //      from unbounded memory.
+  //   3. counted — count what *will actually be emitted*, so the "no
+  //      paths to export" warning and the final tally reflect reality.
+  // Dedup is on by default. `false` (or `0`) opts out cleanly — the
+  // validated stream passes through untouched, no hashing cost, no
+  // spurious cap warning. Useful as an escape hatch if a source
+  // legitimately needs duplicate emissions, though I can't think of
+  // such a case off-hand.
+  const dedupeLimitRaw =
+    options.dedupePathsLimit ?? configRoot.dedupePathsLimit ?? 1_000_000;
+  const dedupeEnabled = dedupeLimitRaw !== false && dedupeLimitRaw !== 0;
+  let dedupeCount = 0;
+  let dedupeCapHit = false;
+  const validated = validatedPathStream(buildPathStream(options, configRoot));
+  const pathStream = dedupeEnabled
+    ? dedupedPathStream(validated, {
+        limit: dedupeLimitRaw,
+        onDuplicate: () => {
+          dedupeCount++;
+        },
+        onCapExceeded: (limit) => {
+          dedupeCapHit = true;
+          console.warn(
+            colors.yellow(
+              `static export: deduplication cap (${limit} unique paths) reached — ` +
+                `further duplicates will be emitted without dedup. ` +
+                `Raise dedupePathsLimit if intentional, otherwise inspect the path source.`
+            )
+          );
+        },
+      })
+    : validated;
 
   // Counted view: we still want the "no paths to export" warning, but
   // can't precompute it without forcing materialization. Wrap to count
@@ -160,8 +205,19 @@ export default async function staticSiteGenerator(root, options) {
     }
   } finally {
     if (ssgSpinner) {
+      // Surface dedup activity in the final summary. Silent dedup would
+      // be confusing — users with a buggy path source need to see that
+      // 30k of their 100k yielded paths were duplicates.
+      const dedupSuffix =
+        dedupeCount > 0
+          ? colors.dim(
+              ` (${dedupeCount} duplicate${dedupeCount === 1 ? "" : "s"} skipped${
+                dedupeCapHit ? ", cap reached" : ""
+              })`
+            )
+          : "";
       ssgSpinner.stop(
-        `${colors.green("✔")} ${colors.dim(`${ssgFileCount} files exported`)}`
+        `${colors.green("✔")} ${colors.dim(`${ssgFileCount} files exported`)}${dedupSuffix}`
       );
       ssgSpinner = null;
     }

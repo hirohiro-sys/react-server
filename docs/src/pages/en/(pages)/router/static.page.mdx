@@ -10,7 +10,7 @@ import Link from "../../../../components/Link.jsx";
 
 When you mark a page as static the file-system based router will add the page as an export to `@lazarv/react-server`'s exports.
 
-To mark a page as static, create a file with the matching path for the page with the `.static.{js,mjs,ts,mts,json}` extension and export default an array or a function returning an array of possible parameters for that route. The function can also be an async function.
+To mark a page as static, create a file with the matching path for the page with the `.static.{js,mjs,ts,mts,json}` extension and export default an array, a function returning an array, or an async generator function yielding the possible parameters for that route. The function can also be an async function.
 
 For pages without any parameters, export default `true`.
 
@@ -43,6 +43,29 @@ export default async () => [{ id: 1 }, { id: 2 }, { id: 3 }];
 ```
 
 Your function will be executed at build time and the result will be used to generate the static pages.
+
+<Link name="streaming-static-paths">
+## Streaming static paths
+</Link>
+
+For routes with very large path counts — paginated content sourced from a CMS, slugs read from a large database, anything where materializing the full list before rendering starts is wasteful — declare the default export as an `async function*` (an async generator) and yield parameter descriptors lazily. Peak memory stays at one descriptor regardless of the total count, and rendering can start as soon as the first item is yielded.
+
+```js filename="users/[id].static.mjs"
+export default async function* () {
+  let cursor = null;
+  do {
+    const { items, next } = await fetchUsers(cursor);
+    for (const user of items) {
+      yield { id: user.id };
+    }
+    cursor = next;
+  } while (cursor);
+}
+```
+
+You can yield `{ ...params }` descriptors (mapped through the route's parameter template, as above) or `{ path: "/explicit/path" }` descriptors for full control. Sync `function*` generators work the same way for fully synchronous sources.
+
+> **Note:** detection is by function kind. Write `async function*` (or `function*`) **directly** as the default export — wrappers that return an ordinary function fall back to the array contract.
 
 <Link name="static-json-data">
 ## Static JSON data
