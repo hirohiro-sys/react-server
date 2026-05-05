@@ -85,10 +85,26 @@ function mergeOrApply(a, b = {}) {
 }
 
 function match(files, includes, excludes) {
-  return micromatch(files, [
-    ...(includes ?? ["**/*"]),
-    ...(excludes ?? []).map((pattern) => `!${pattern}`),
-  ]);
+  return micromatch(
+    files,
+    [
+      ...(includes ?? ["**/*"]),
+      ...(excludes ?? []).map((pattern) => `!${pattern}`),
+    ],
+    // dot:true so absolute paths whose ancestors include dot-prefixed
+    // segments still classify correctly. This helper feeds isPage /
+    // isLayout / isMiddleware / isApi / isResource via isTypeOf, which
+    // run on the absolute `src` produced by the chokidar add handler
+    // (`join(cwd, root, rawSrc)`). When a CLI ships its own pages and
+    // is launched via `npx` — where the package lives under
+    // `~/.npm/_npx/<hash>/...` — every classification would silently
+    // return false (manifest reports `0 pages`) because micromatch
+    // defaults to `dot:false` and rejects any path whose *ancestors*
+    // contain a dot-prefixed segment, not just the basename. Same
+    // trap as the fast-glob `dot:true` we already pass below for the
+    // initial-files scan; both layers must opt in.
+    { dot: true }
+  );
 }
 
 function source(files, rootDir, root) {
