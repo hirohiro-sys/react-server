@@ -1988,6 +1988,30 @@ export default __rs_descriptor__.from(mapping);
       if (viteCommand === "build") {
         await config_init$();
 
+        // Register every layout/page/middleware/api/resource source as a
+        // Rolldown input. Forces per-route chunks (entry-point semantics)
+        // — without this, when react-server is consumed from a
+        // node_modules-installed CLI that ships its own pages, the
+        // per-package chunk-grouping rule in lib/build/server.mjs folds
+        // every route into one aggregate chunk, deadlocking on the
+        // codegen's layout-import cycle and stripping per-route entries
+        // from manifest.server (so init$()'s collectStylesheets can't
+        // reach layout CSS via manifest.imports). Workspace builds were
+        // unaffected because their source paths don't contain
+        // node_modules — the grouping rule never fires there.
+        config.build.rolldownOptions.input ??= {};
+        for (const [kind, list] of Object.entries(entry)) {
+          for (const e of list) {
+            if (!e?.src) continue;
+            const name =
+              `router/${kind}/` +
+              sys
+                .normalizePath(relative(rootDir, e.src))
+                .replace(/\.[^./]+$/, "");
+            config.build.rolldownOptions.input[name] ??= e.src;
+          }
+        }
+
         // Set virtual module content for the client build.
         // The client build doesn't load file-router, so the resources plugin
         // serves these as virtual modules using the shared store.
@@ -2107,7 +2131,8 @@ ${outletExportLines.join("\n")}
                 const exportEntry = pathToFileURL(
                   join(cwd, outDir, "static", `${hash}.mjs`)
                 );
-                config.build.rollupOptions.input[`static/${hash}`] = staticSrc;
+                config.build.rolldownOptions.input[`static/${hash}`] =
+                  staticSrc;
                 // Streaming loader for *.static.{js,mjs,jsx} files. Mirrors the
                 // `config.export` contract: the default export may be an array,
                 // a function, an (async) iterable, or an (async) generator
@@ -2746,6 +2771,7 @@ ${lazyMatchersLines.join("\n")}
           ${errorBoundaries.map(([src], i) => `import __react_server_router_error_${i}__ from "${src}"; errorBoundaryComponents.set("${src}", __react_server_router_error_${i}__);`).join("\n")}
           ${fallbacks.map(([src], i) => `import __react_server_router_fallback_${i}__ from "${src}"; fallbackComponents.set("${src}", __react_server_router_fallback_${i}__);`).join("\n")}
           ${loadings.map(([src], i) => `import __react_server_router_loading_${i}__ from "${src}"; loadingComponents.set("${src}", __react_server_router_loading_${i}__);`).join("\n")}
+          ${layouts.map(([src], i) => `import * as __react_server_router_layout_${i}_mod__ from "${src}";`).join("\n")}
           import * as __react_server_page__ from "${src}";
           ${clientSiblings.map(([sibSrc], i) => `import __client_page_${i}__ from "${sibSrc}";`).join("\n          ")}
           ${routeResources.map(([resourceSrc], i) => `import __resource_${i}__ from "${resourceSrc}";`).join("\n          ")}
@@ -2768,8 +2794,8 @@ ${lazyMatchersLines.join("\n")}
           ${mdxComponents && /\.(md|mdx)/.test(src) ? `pageProps.components = typeof MDXComponents === "function" ? MDXComponents() : MDXComponents;` : ""}
           ${layouts
             .map(
-              ([src], i) =>
-                `const { default: __react_server_router_layout_${i}__, ...__react_server_router_layout_props_${i}__ } = await import("${src}");`
+              (_, i) =>
+                `const { default: __react_server_router_layout_${i}__, ...__react_server_router_layout_props_${i}__ } = __react_server_router_layout_${i}_mod__;`
             )
             .join("\n")}
           ${layouts
