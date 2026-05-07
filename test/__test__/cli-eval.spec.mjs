@@ -214,7 +214,7 @@ async function fetchText(url, { timeoutMs = 10000 } = {}) {
 // wrapper log changes.
 const DEV_READY = /(Server\s+listening\s+on|Local:\s+https?:\/\/)/i;
 
-describe.sequential("CLI --eval wiring", () => {
+describe("CLI --eval wiring", { sequential: true }, () => {
   let workdir;
 
   beforeAll(async () => {

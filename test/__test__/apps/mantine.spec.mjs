@@ -39,8 +39,8 @@ const MANTINE = { cwd: appDir("examples/mantine") };
 // NODE_ENV=production (the test-build-start suite).
 const SKIP_MANTINE = process.env.NODE_ENV === "production";
 
-describe.skipIf(SKIP_MANTINE).sequential("mantine", () => {
-  describe.sequential("setup", () => {
+describe.skipIf(SKIP_MANTINE)("mantine", { sequential: true }, () => {
+  describe("setup", { sequential: true }, () => {
     test(
       "build",
       {
