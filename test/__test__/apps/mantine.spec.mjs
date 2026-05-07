@@ -26,20 +26,7 @@ import { describe, expect } from "vitest";
 // (BUILD or START) is the one to read; the rest are downstream noise.
 const MANTINE = { cwd: appDir("examples/mantine") };
 
-// TODO: re-enable production build test once the rolldown emit_chunk deadlock
-// fix lands. Mantine's build triggers a deadlock in rolldown@1.0.0-rc.13 where
-// many `use client` modules each emit a chunk from `transform`, the bounded
-// (1024) module-loader channel fills, and the JS thread blocks inside a sync
-// `emit_chunk` napi binding that is `block_on`-ing a `tx.send().await` — while
-// the loader is waiting on TSFN callbacks that can only run on that same
-// blocked JS thread. See rolldown issue #7311 and the upstream fix PR that
-// makes the entire emit_chunk path synchronous.
-//
-// Dev mode is unaffected (the build phase is a no-op), so we only skip under
-// NODE_ENV=production (the test-build-start suite).
-const SKIP_MANTINE = process.env.NODE_ENV === "production";
-
-describe.skipIf(SKIP_MANTINE)("mantine", { sequential: true }, () => {
+describe("mantine", { sequential: true }, () => {
   describe("setup", { sequential: true }, () => {
     test(
       "build",
