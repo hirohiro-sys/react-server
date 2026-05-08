@@ -30,6 +30,7 @@ import {
   HTTP_STATUS,
   IMPORT_MAP,
   LINK_QUEUE,
+  LIVE_TRANSPORT,
   LOGGER_CONTEXT,
   MAIN_MODULE,
   MANIFEST,
@@ -328,6 +329,18 @@ export default async function ssrHandler(root, options = {}) {
           ContextStorage.run(
             {
               [SERVER_CONTEXT]: getRuntime(SERVER_CONTEXT),
+              // Copy the live transport registry into the per-request
+              // context. The render path (`server/render-rsc.jsx`) reads
+              // it via `getContext(LIVE_TRANSPORT)` to decide whether to
+              // emit a `<link rel="preconnect">` for the live channel.
+              // Reading from context (vs `getRuntime` directly in the
+              // render module) keeps the bundled render module's
+              // dependency surface narrow — pulling `getRuntime` into
+              // the render bundle previously dragged the file-router
+              // plugin's chokidar import into the bundle graph through
+              // Rolldown's symlink-based resolver. See the matching
+              // comment in `server/render-rsc.jsx`.
+              [LIVE_TRANSPORT]: getRuntime(LIVE_TRANSPORT),
               [CONFIG_CONTEXT]: config,
               [HTTP_CONTEXT]: httpContext,
               [ABORT_SIGNAL]: httpContext.signal,
@@ -495,7 +508,23 @@ export default async function ssrHandler(root, options = {}) {
                 ?.includes("multipart/form-data");
               const isActionRequest =
                 isMutating && (hasActionHeader || isMultipart);
-              const useShortcut = isClientRoot && !isActionRequest;
+              // Remote-component fetches (`.remote.x-component`) expect a
+              // flight payload the host's `createFromFetch` can parse.
+              // render-ssr.jsx's remote branch falls into HTML SSR and the
+              // host would wait forever parsing HTML as flight bytes — so
+              // route remote requests back through the full RSC entry too,
+              // same as server-action POSTs.
+              //
+              // Read the `isRemote` flag from `renderContext` (set by
+              // `createRenderContext` based on the URL extension match)
+              // rather than re-inspecting the pathname here: by the time
+              // dispatch runs, `createRenderContext` has already stripped
+              // the `.remote.x-component` suffix and the `@<outlet>.` prefix
+              // from `httpContext.url.pathname`, so a `.includes("@__react_server_remote__")`
+              // check would always read `false` for an actual remote request.
+              const isRemoteRequest = !!renderContext.flags?.isRemote;
+              const useShortcut =
+                isClientRoot && !isActionRequest && !isRemoteRequest;
               const dispatchRender = useShortcut
                 ? render
                 : (renderAction ?? render);

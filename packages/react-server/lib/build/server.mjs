@@ -403,10 +403,13 @@ export default async function serverBuild(root, options, clientManifestBus) {
     { paths: [cwd] }
   );
   // Client-root builds bundle render-rsc.jsx as a secondary entry so the
-  // runtime can dispatch server-action POSTs through the full RSC pipeline
-  // even though the primary `server/render` is the SSR shortcut. See the
-  // matching per-request switch in lib/start/ssr-handler.mjs. Non-client-root
-  // builds don't need this bundle — the primary entry already is RSC.
+  // runtime can dispatch server-action POSTs (and `.remote.x-component`
+  // requests) through the full RSC pipeline even though the primary
+  // `server/render` is the SSR shortcut. See the matching per-request
+  // switch in lib/start/ssr-handler.mjs. Non-client-root builds don't
+  // need this bundle — `server/render` already IS render-rsc.jsx, so
+  // the dispatcher's `renderAction ?? render` fallback resolves to the
+  // same module.
   const renderActionModulePath = isClientRootBuild
     ? __require.resolve("@lazarv/react-server/server/render-rsc.jsx", {
         paths: [cwd],

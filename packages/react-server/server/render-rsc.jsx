@@ -38,6 +38,7 @@ import {
   HTTP_RESPONSE,
   HTTP_STATUS,
   IMPORT_MAP,
+  LIVE_TRANSPORT,
   LOGGER_CONTEXT,
   MAIN_MODULE,
   POSTPONE_STATE,
@@ -572,13 +573,33 @@ export async function render(Component, props = {}, options = {}) {
                 );
               }
             : () => null;
+        // Live preconnect link — only emit when this server has at least
+        // one live transport initialized. In dev that means the live plugin
+        // saw a `"use live"` module; in prod that means the build wrote the
+        // live-io manifest and the production server loaded a transport.
+        // When neither is true, no `<link>` is emitted, and the client
+        // never tries to dynamically import any live transport adapter.
+        // The `data-transport` attribute carries the page-level default so
+        // the client can pick the right adapter without an extra round-trip.
+        //
+        // Read from the per-request CONTEXT (set by the live plugin /
+        // production live bootstrap) rather than the runtime registry —
+        // pulling `getRuntime` into this render module previously
+        // dragged the `lib/plugins/file-router/plugin.mjs` chokidar
+        // import into the bundle graph through Rolldown's symlink-based
+        // package-resolver path. Keeping the dependency surface narrow
+        // (just `getContext` + the `LIVE_TRANSPORT` symbol) avoids that
+        // re-traversal entirely.
+        const liveRegistry = getContext(LIVE_TRANSPORT);
+        const liveTransportName = liveRegistry?.default;
         const additionalComponents = (
           <>
-            {remoteRSC ? null : (
+            {remoteRSC || !liveTransportName ? null : (
               <link
                 rel="preconnect"
                 href={origin ?? "/"}
                 id={remote ? `live-io-${outlet}` : "live-io"}
+                data-transport={liveTransportName}
               />
             )}
             {import.meta.env.DEV && !remote && !remoteRSC && (
