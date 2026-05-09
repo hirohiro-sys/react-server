@@ -149,11 +149,20 @@ const pages = [
       "Partial pre-rendering controls: `usePrerender` to mark a component for build-time rendering, and the `withPrerender` HOC wrapper.",
   },
   {
+    slug: "function",
+    title: "Function",
+    importPath: "@lazarv/react-server/function",
+    dts: "server/function.d.ts",
+    order: 9,
+    description:
+      'Server-function validation: `createFunction` wraps a `"use server"` handler with a per-arg parse/validate spec, plus the wire-aware helpers (`formData`, `file`, `blob`, `arrayBuffer`, `typedArray`, `map`, `set`, `stream`, `asyncIterable`, `iterable`, `promise`) for the rest of the Flight protocol surface.',
+  },
+  {
     slug: "memory-cache",
     title: "Memory Cache",
     importPath: "@lazarv/react-server/memory-cache",
     dts: ["cache/index.d.ts", "cache/client.d.ts"],
-    order: 9,
+    order: 10,
     description:
       "Default in-memory cache provider. Exposes `useCache`, `invalidate`, and the client-side helpers used when the runtime's built-in cache is active.",
   },
@@ -162,7 +171,7 @@ const pages = [
     title: "Storage Cache",
     importPath: "@lazarv/react-server/storage-cache",
     dts: "cache/storage-cache.d.ts",
-    order: 10,
+    order: 11,
     description:
       "Durable cache backend built on [unstorage](https://unstorage.unjs.io/). Supports any unstorage driver — Redis, Cloudflare KV, Upstash, filesystem, etc.",
   },
@@ -171,7 +180,7 @@ const pages = [
     title: "RSC",
     importPath: "@lazarv/react-server/rsc",
     dts: "cache/rsc.d.ts",
-    order: 11,
+    order: 12,
     description:
       "Low-level RSC serialization helpers — serialize and deserialize React server component payloads directly. Most apps should not need these.",
   },
@@ -180,7 +189,7 @@ const pages = [
     title: "Worker",
     importPath: "@lazarv/react-server/worker",
     dts: "worker/index.d.ts",
-    order: 12,
+    order: 13,
     description:
       'Helpers for modules marked with the `"use worker"` directive. On the server runs in a Node Worker Thread; on the client runs in a Web Worker.',
   },
@@ -189,7 +198,7 @@ const pages = [
     title: "MCP",
     importPath: "@lazarv/react-server/mcp",
     dts: "server/mcp.d.ts",
-    order: 13,
+    order: 14,
     description:
       "Model Context Protocol primitives. Build typed tools, resources, and prompts, then expose them through an MCP server route handler.",
   },
@@ -198,7 +207,7 @@ const pages = [
     title: "HTTP",
     importPath: "@lazarv/react-server/http",
     dts: "lib/http/index.d.ts",
-    order: 14,
+    order: 15,
     description:
       "Low-level HTTP context types shared across middleware, route handlers, and server functions.",
   },
@@ -207,7 +216,7 @@ const pages = [
     title: "Config",
     importPath: "@lazarv/react-server/config",
     dts: ["config/index.d.ts", "config/schema.d.ts"],
-    order: 15,
+    order: 16,
     description:
       "Configuration schema and helpers. Import `ReactServerConfig` for typed `react-server.config.mjs` files and `generateJsonSchema` to emit the JSON Schema consumed by editors.",
   },
@@ -216,7 +225,7 @@ const pages = [
     title: "Adapters",
     importPath: "@lazarv/react-server/adapters/*",
     dts: ["adapters/core.d.ts", "adapters/adapter.d.ts"],
-    order: 16,
+    order: 17,
     description:
       "Shared types and helpers for building deploy adapters. The same surface is re-exported from every `@lazarv/react-server/adapters/<target>` subpath — each concrete adapter is a thin wrapper around `createAdapter`.",
   },
@@ -225,7 +234,7 @@ const pages = [
     title: "Node",
     importPath: "@lazarv/react-server/node",
     dts: "lib/start/node.d.ts",
-    order: 17,
+    order: 18,
     description:
       "Mount the runtime inside an existing Node.js HTTP server (Express, Fastify, NestJS, raw `http`). Used in middleware mode and custom server setups.",
   },
@@ -234,7 +243,7 @@ const pages = [
     title: "Dev",
     importPath: "@lazarv/react-server/dev",
     dts: "lib/dev/index.d.ts",
-    order: 18,
+    order: 19,
     description:
       "Programmatic entry point to the development server. Equivalent to invoking the `react-server` CLI without arguments.",
   },
@@ -243,7 +252,7 @@ const pages = [
     title: "Build",
     importPath: "@lazarv/react-server/build",
     dts: "lib/build/index.d.ts",
-    order: 19,
+    order: 20,
     description:
       "Programmatic build entry point. Equivalent to the `react-server build` CLI command — useful for custom build pipelines.",
   },
@@ -252,7 +261,7 @@ const pages = [
     title: "DevTools",
     importPath: "@lazarv/react-server/devtools",
     dts: "devtools/index.d.ts",
-    order: 20,
+    order: 21,
     description:
       "Configuration surface for the in-browser DevTools panel. Opt the panel in and out per environment and tune what it tracks.",
   },
@@ -261,7 +270,7 @@ const pages = [
     title: "Telemetry",
     importPath: "@lazarv/react-server/telemetry",
     dts: "telemetry/index.d.ts",
-    order: 21,
+    order: 22,
     description:
       "OpenTelemetry integration. Safe no-op when OpenTelemetry packages are not installed — import `getTracer`, `getMeter`, `withSpan`, and friends directly without guarding.",
   },
@@ -269,11 +278,11 @@ const pages = [
 
 const landingSections = [
   { label: "Runtime", from: 1, to: 4 },
-  { label: "Data, rendering, resiliency", from: 5, to: 8 },
-  { label: "Caching", from: 9, to: 11 },
-  { label: "Advanced", from: 12, to: 14 },
-  { label: "Config, build, deploy", from: 15, to: 19 },
-  { label: "Observability & tooling", from: 20, to: 99 },
+  { label: "Data, rendering, resiliency", from: 5, to: 9 },
+  { label: "Caching", from: 10, to: 12 },
+  { label: "Advanced", from: 13, to: 15 },
+  { label: "Config, build, deploy", from: 16, to: 20 },
+  { label: "Observability & tooling", from: 21, to: 99 },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
